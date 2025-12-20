@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  *, ::after, ::before { border-color: var(--color-zinc-800); }
+  html { transition: background-color 0.3s ease; }
+}
+
+@theme {
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #4f46e5;
+}
+
+/* 2025 Professional Toast Animation */
+@keyframes slideDown {
+  from { transform: translate(-50%, -40px); opacity: 0; }
+  to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+.animate-in {
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* UI Polish: Style the Resize Handle */
+textarea::-webkit-resizer {
+  border-width: 8px;
+  border-style: solid;
+  border-color: transparent var(--color-indigo-600) var(--color-indigo-600) transparent;
+}
+
+/* Prism.js Theming: High-Contrast Architect Style */
+code[class*="language-"], pre[class*="language-"] {
+    color: #f8f8f2;
+    background: none;
+    font-family: ui-monospace, monospace;
+    line-height: 1.6;
+}
+
+.dark .token.comment { color: #8292a2; font-style: italic; }
+.dark .token.string { color: #a6e22e; }
+.dark .token.keyword { color: #66d9ef; font-weight: 700; }
+.dark .token.function { color: #e6db74; }
+.dark .token.class-name { color: #f8f8f2; text-decoration: underline; text-underline-offset: 4px; }
+
+html:not(.dark) code[class*="language-"] { color: #1e293b; }
+html:not(.dark) .token.string { color: #16a34a; }
+html:not(.dark) .token.keyword { color: #2563eb; font-weight: 700; }
+html:not(.dark) .token.function { color: #d97706; }
