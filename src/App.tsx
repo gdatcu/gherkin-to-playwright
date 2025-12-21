@@ -1,13 +1,21 @@
-// src/App.tsx
-
 import { useState, useEffect } from 'react';
 import { 
   Code2, Sparkles, Globe, Image as ImageIcon, Zap, Sun, Moon, 
-  Copy, Check, Terminal, FileDown, Trash2, Settings2, FileText, Code
+  Copy, Check, Terminal, FileDown, Trash2, Settings2, FileText, Code, History, Clock, X
 } from 'lucide-react';
 import { convertGherkin } from './services/ai-client';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
+
+// Interface for D1 Database items
+interface HistoryItem {
+  id: string;
+  gherkin: string;
+  playwright: string;
+  baseUrl: string;
+  model: string;
+  timestamp: string;
+}
 
 function App() {
   const [isDark, setIsDark] = useState(() => {
@@ -24,20 +32,36 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   
-  // Mobile Navigation State
-  const [activeTab, setActiveTab] = useState<'context' | 'input' | 'output'>('input');
+  // History State
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  
+  // Mobile Navigation State (Added 'history')
+  const [activeTab, setActiveTab] = useState<'context' | 'input' | 'output' | 'history'>('input');
+
+  // Fetch History from D1
+  const fetchHistory = async () => {
+    try {
+      const res = await fetch('/api/history');
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch history from D1");
+    }
+  };
 
   useEffect(() => {
     const root = window.document.documentElement;
     isDark ? root.classList.add('dark') : root.classList.remove('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    fetchHistory();
     Prism.highlightAll();
   }, [isDark]);
 
   useEffect(() => {
     if (output) {
       Prism.highlightAll();
-      // Auto-switch to output tab on mobile for immediate results
       if (window.innerWidth < 1024) setActiveTab('output');
     }
   }, [output]);
@@ -48,6 +72,8 @@ function App() {
       const data = await convertGherkin(input, baseUrl, screenshot, htmlContext);
       setOutput(data.code);
       setMeta({ model: data.modelUsed });
+      // Refresh history list after a new conversion is saved to D1
+      fetchHistory();
     } catch (e) { 
       alert("Conversion Failed. Check your Cloudflare Environment Variables."); 
     } finally { 
@@ -55,11 +81,34 @@ function App() {
     }
   };
 
+  const loadFromHistory = (item: HistoryItem) => {
+    setInput(item.gherkin);
+    setOutput(item.playwright);
+    setBaseUrl(item.baseUrl);
+    setMeta({ model: item.model });
+    // Switch to input view to see the restored code
+    setActiveTab('input');
+    if (window.innerWidth >= 1024) {
+      setTimeout(() => Prism.highlightAll(), 10);
+    }
+  };
+
+  const deleteHistoryItem = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent loading the item when deleting
+    try {
+      const res = await fetch(`/api/history?id=${id}`, { method: 'DELETE' });
+      if (res.ok) fetchHistory();
+    } catch (e) {
+      console.error("Delete failed");
+    }
+  };
+
   const resetContext = () => {
-    if (confirm("Reset all inputs?")) {
+    if (confirm("Reset current editors? (History will be kept)")) {
       setInput('');
       setHtmlContext('');
       setScreenshot(null);
+      setOutput('');
     }
   };
 
@@ -90,12 +139,12 @@ function App() {
         </div>
       )}
 
-      {/* Sidebar - Settings Context */}
+      {/* Sidebar - Settings & History */}
       <aside className={`
-        ${activeTab === 'context' ? 'flex' : 'hidden'} 
-        lg:flex lg:w-80 w-full flex-1 lg:flex-none border-r dark:border-zinc-800 border-slate-200 dark:bg-zinc-950 bg-white flex-col p-6 z-20 overflow-y-auto shrink-0
+        ${(activeTab === 'context' || activeTab === 'history') ? 'flex' : 'hidden'} 
+        lg:flex lg:w-80 w-full flex-1 lg:flex-none border-r dark:border-zinc-800 border-slate-200 dark:bg-zinc-950 bg-white flex-col z-20 overflow-hidden shrink-0
       `}>
-        <div className="flex items-center justify-between mb-10">
+        <div className="p-6 flex items-center justify-between border-b dark:border-zinc-800 border-slate-100">
           <div className="flex items-center gap-2">
             <div className="bg-indigo-600 p-1.5 rounded-lg shadow-lg"><Zap className="text-white" size={18} fill="currentColor" /></div>
             <span className="font-bold tracking-tight dark:text-white text-slate-900 italic uppercase">ShipFast QA</span>
@@ -105,62 +154,96 @@ function App() {
           </button>
         </div>
 
-        <div className="space-y-8 flex-1">
-          <section className="space-y-3">
-            <div className="flex justify-between items-center">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500">Target URL</label>
-              <button onClick={resetContext} className="text-[10px] text-red-500 hover:text-red-400 font-bold uppercase flex items-center gap-1">
-                <Trash2 size={12} /> Reset
-              </button>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-2 dark:bg-zinc-900 bg-slate-50 border dark:border-zinc-800 border-slate-200 rounded-lg">
-              <Globe size={14} className="text-slate-400" />
-              <input className="bg-transparent border-none outline-none text-xs w-full dark:text-zinc-200 text-slate-700 font-medium" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500 block text-left">DOM Context (HTML)</label>
-            <textarea 
-              className="w-full min-h-[140px] dark:bg-zinc-900 bg-slate-50 border dark:border-zinc-800 border-slate-200 rounded-lg p-3 text-[10px] font-mono outline-none focus:ring-1 focus:ring-indigo-500 transition-all resize-y dark:text-zinc-300 text-slate-600"
-              placeholder="Paste OuterHTML here..."
-              value={htmlContext} onChange={(e) => setHtmlContext(e.target.value)}
-            />
-          </section>
-
-          <section>
-            <label className="block w-full cursor-pointer group text-left">
-              <div className="flex flex-col items-center justify-center gap-3 py-6 border-2 border-dashed dark:border-zinc-800 border-slate-200 rounded-xl hover:border-indigo-500 transition-all dark:bg-zinc-900/30 bg-slate-50">
-                <ImageIcon size={20} className={`${screenshot ? 'text-indigo-500' : 'text-slate-400'} group-hover:scale-110 transition-transform`} />
-                <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-zinc-400">{screenshot ? "UI Logic Loaded" : "Upload UI Ref"}</span>
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          {/* Settings Section - Visible on Desktop or mobile 'context' tab */}
+          <div className={activeTab === 'history' ? 'lg:block hidden' : 'block'}>
+            <section className="space-y-3">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500">Target URL</label>
+                <button onClick={resetContext} className="text-[10px] text-red-500 hover:text-red-400 font-bold uppercase flex items-center gap-1">
+                  <Trash2 size={12} /> Reset
+                </button>
               </div>
-              <input type="file" className="hidden" onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) {
-                   const reader = new FileReader();
-                   reader.onloadend = () => setScreenshot(reader.result as string);
-                   reader.readAsDataURL(file);
-                }
-              }} accept="image/*" />
-            </label>
-          </section>
+              <div className="flex items-center gap-2 px-3 py-2 dark:bg-zinc-900 bg-slate-50 border dark:border-zinc-800 border-slate-200 rounded-lg">
+                <Globe size={14} className="text-slate-400" />
+                <input className="bg-transparent border-none outline-none text-xs w-full dark:text-zinc-200 text-slate-700 font-medium" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+              </div>
+            </section>
 
-          <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-xl mt-6 hidden lg:block">
-            <h4 className="text-[10px] font-bold text-indigo-500 uppercase flex items-center gap-2 mb-2">
-              <Code2 size={12} /> Architect Tip
-            </h4>
-            <p className="text-[10px] leading-relaxed dark:text-zinc-400 text-slate-500">
-              Save POM classes in <span className="font-mono text-indigo-400">/models</span> and test specs in <span className="font-mono text-indigo-400">/tests</span>.
-            </p>
+            <section className="space-y-3 mt-6">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500 block text-left">DOM Context (HTML)</label>
+              <textarea 
+                className="w-full min-h-[120px] dark:bg-zinc-900 bg-slate-50 border dark:border-zinc-800 border-slate-200 rounded-lg p-3 text-[10px] font-mono outline-none focus:ring-1 focus:ring-indigo-500 transition-all resize-y dark:text-zinc-300 text-slate-600"
+                placeholder="Paste OuterHTML here..."
+                value={htmlContext} onChange={(e) => setHtmlContext(e.target.value)}
+              />
+            </section>
+
+            <section className="mt-6">
+              <label className="block w-full cursor-pointer group text-left">
+                <div className="flex flex-col items-center justify-center gap-3 py-6 border-2 border-dashed dark:border-zinc-800 border-slate-200 rounded-xl hover:border-indigo-500 transition-all dark:bg-zinc-900/30 bg-slate-50">
+                  <ImageIcon size={20} className={`${screenshot ? 'text-indigo-500' : 'text-slate-400'} group-hover:scale-110 transition-transform`} />
+                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-zinc-400">{screenshot ? "UI Logic Loaded" : "Upload UI Ref"}</span>
+                </div>
+                <input type="file" className="hidden" onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setScreenshot(reader.result as string);
+                    reader.readAsDataURL(file);
+                  }
+                }} accept="image/*" />
+              </label>
+            </section>
+          </div>
+
+          {/* History Section - Visible on Desktop or mobile 'history' tab */}
+          <div className={activeTab === 'context' ? 'lg:block hidden pt-4' : 'block pt-2'}>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500 flex items-center gap-2 mb-4">
+              <History size={12} /> Recent Conversions
+            </label>
+            <div className="space-y-3">
+              {history.length === 0 ? (
+                <div className="text-[10px] text-slate-400 italic py-8 text-center border border-dashed dark:border-zinc-800 rounded-lg">
+                  No conversions saved yet
+                </div>
+              ) : (
+                history.map((item) => (
+                  <div 
+                    key={item.id}
+                    onClick={() => loadFromHistory(item)}
+                    className="group relative p-3 rounded-lg border dark:border-zinc-800 border-slate-200 hover:border-indigo-500 dark:hover:bg-zinc-900 bg-white dark:bg-transparent cursor-pointer transition-all"
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-[10px] font-bold text-indigo-500 truncate pr-4 uppercase">
+                        {item.gherkin.split('\n')[0].replace('Scenario:', '').trim() || 'Untitled'}
+                      </span>
+                      <button 
+                        onClick={(e) => deleteHistoryItem(item.id, e)} 
+                        className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 text-[9px] text-slate-400">
+                      <Clock size={10} />
+                      {new Date(item.timestamp).toLocaleDateString()} • {item.model}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </aside>
 
       {/* Main Workspace */}
-      <main className={`flex-1 flex flex-col relative dark:bg-zinc-950 bg-white ${activeTab === 'context' ? 'hidden lg:flex' : 'flex'} overflow-hidden`}>
+      <main className={`flex-1 flex flex-col relative dark:bg-zinc-950 bg-white ${ (activeTab === 'context' || activeTab === 'history') ? 'hidden lg:flex' : 'flex'} overflow-hidden`}>
         <header className="h-16 border-b dark:border-zinc-800 border-slate-200 flex items-center justify-between px-4 lg:px-8 bg-inherit z-50 shrink-0">
           <div className="flex items-center gap-2 text-xs font-semibold dark:text-zinc-500 text-slate-400">
-            <Terminal size={14} className="hidden sm:block" /> <span>gherkin-to-playwright.ts</span>
+            <Terminal size={14} className="hidden sm:block" /> 
+            <span>gherkin-to-playwright.ts</span>
+            {meta?.model && <span className="ml-2 px-2 py-0.5 bg-indigo-500/10 text-indigo-500 rounded text-[9px]">{meta.model}</span>}
           </div>
           <button 
             onClick={handleConvert}
@@ -211,14 +294,21 @@ function App() {
           className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'output' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}
         >
           <Code size={18} />
-          <span className="text-[9px] font-bold uppercase">Playwright</span>
+          <span className="text-[9px] font-bold uppercase">Code</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('history')} 
+          className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'history' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}
+        >
+          <History size={18} />
+          <span className="text-[9px] font-bold uppercase">History</span>
         </button>
         <button 
           onClick={() => setActiveTab('context')} 
           className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'context' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}
         >
           <Settings2 size={18} />
-          <span className="text-[9px] font-bold uppercase">Settings</span>
+          <span className="text-[9px] font-bold uppercase">Setup</span>
         </button>
       </nav>
     </div>

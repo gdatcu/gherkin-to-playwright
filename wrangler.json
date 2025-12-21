@@ -1,0 +1,11 @@
+{
+  "name": "gherkin-to-playwright",
+  "pages_build_output_dir": "dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gherkin_db",
+      "database_id": "09b8f4d6-1c58-43b2-aea6-ef24c38a8b19"
+    }
+  ]
+}
