@@ -1,3 +1,5 @@
+/* src/index.css */
+
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -6,7 +8,10 @@
   *, ::after, ::before { border-color: var(--color-zinc-800); }
   
   html, body, #root {
-    height: 100%;
+    /* Use dvh (Dynamic Viewport Height) for modern mobile browsers */
+    height: 100dvh; 
+    /* Fallback for older browsers */
+    height: 100vh; 
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -16,9 +21,12 @@
   body { 
     overscroll-behavior-y: none; 
     @apply antialiased;
+    /* Ensures content doesn't shift when bars appear/disappear */
+    position: fixed;
+    width: 100%;
   }
 
-  /* Prevent iOS Safari from zooming in on input focus */
+  /* Prevent iOS Safari and Android Chrome from zooming in on input focus */
   textarea, input {
     font-size: 16px !important;
   }
@@ -72,3 +80,32 @@ html:not(.dark) code[class*="language-"] { color: #1e293b; }
 html:not(.dark) .token.string { color: #16a34a; }
 html:not(.dark) .token.keyword { color: #2563eb; font-weight: 700; }
 html:not(.dark) .token.function { color: #d97706; }
+
+/* src/index.css */
+
+@layer base {
+  html, body, #root {
+    height: 100dvh; 
+    height: 100vh; 
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    /* ADD THIS LINE: Prevents the pull-to-refresh reload on mobile */
+    overscroll-behavior-y: none;
+    /* Use safe area insets for padding to avoid notches */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    background-color: #0a0a0a; /* Match your dark theme background */
+  }
+
+  body { 
+    overscroll-behavior-y: none; 
+    @apply antialiased;
+    position: fixed;
+    width: 100%;
+    /* Ensure the body itself fills the root even with padding */
+    height: 100%; 
+  }
+}

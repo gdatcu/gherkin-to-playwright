@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import { useState, useEffect } from 'react';
 import { 
   Code2, Sparkles, Globe, Image as ImageIcon, Zap, Sun, Moon, 
@@ -79,7 +81,7 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen w-full font-sans transition-colors duration-300 dark:bg-[#0a0a0a] bg-slate-50 relative overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-[100dvh] w-full font-sans transition-colors duration-300 dark:bg-[#0a0a0a] bg-slate-50 relative overflow-hidden">
       
       {/* GLOBAL TOAST */}
       {copied && (
@@ -196,7 +198,7 @@ function App() {
       </main>
 
       {/* Mobile Tab Bar - Persistently at the bottom */}
-      <nav className="lg:hidden h-16 flex border-t dark:border-zinc-800 border-slate-200 bg-white dark:bg-zinc-950 shrink-0">
+      <nav className="lg:hidden h-20 pb-4 flex border-t dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
         <button 
           onClick={() => setActiveTab('input')} 
           className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'input' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}
