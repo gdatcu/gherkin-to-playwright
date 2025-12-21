@@ -34,6 +34,15 @@ export default defineConfig({
           }
         ]
       }
-    })
+    }),
   ],
+  server: {
+    proxy: {
+      // Directs all /api calls to the Wrangler/Pages Functions local server
+      '/api': {
+        target: 'http://127.0.0.1:8788', 
+        changeOrigin: true,
+      },
+    },
+  },
 })

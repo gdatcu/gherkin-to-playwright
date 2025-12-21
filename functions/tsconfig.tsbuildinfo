@@ -1,1 +1,1 @@
-{"root":["./api/convert.ts","./api/history.ts","./api/prompt.ts"],"version":"5.9.3"}
+{"root":["./_auth.ts","./db-schema.ts","./api/convert.ts","./api/history.ts","./api/prompt.ts","./api/auth/[[auth]].ts"],"version":"5.9.3"}

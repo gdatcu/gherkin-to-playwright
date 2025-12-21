@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { 
   Code2, Sparkles, Globe, Image as ImageIcon, Zap, Sun, Moon, 
-  Copy, Check, Terminal, FileDown, Trash2, Settings2, FileText, Code, History, Clock, X
+  Copy, Check, Terminal, FileDown, Trash2, Settings2, FileText, Code, History, Clock, X,
+  LogOut, LogIn, User
 } from 'lucide-react';
 import { convertGherkin } from './services/ai-client';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
 
-// Interface for D1 Database items
+import { authClient } from "./lib/auth-client";
+
 interface HistoryItem {
   id: string;
   gherkin: string;
@@ -31,15 +33,14 @@ function App() {
   const [meta, setMeta] = useState<{ model?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  
-  // History State
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  
-  // Mobile Navigation State (Added 'history')
   const [activeTab, setActiveTab] = useState<'context' | 'input' | 'output' | 'history'>('input');
 
-  // Fetch History from D1
+  // BetterAuth Hooks
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+
   const fetchHistory = async () => {
+    if (!session) return; // Don't fetch if not logged in
     try {
       const res = await fetch('/api/history');
       if (res.ok) {
@@ -55,9 +56,12 @@ function App() {
     const root = window.document.documentElement;
     isDark ? root.classList.add('dark') : root.classList.remove('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
-    fetchHistory();
+    
+    if (session) fetchHistory();
+    else setHistory([]); // Clear history UI if logged out
+
     Prism.highlightAll();
-  }, [isDark]);
+  }, [isDark, session]);
 
   useEffect(() => {
     if (output) {
@@ -72,8 +76,7 @@ function App() {
       const data = await convertGherkin(input, baseUrl, screenshot, htmlContext);
       setOutput(data.code);
       setMeta({ model: data.modelUsed });
-      // Refresh history list after a new conversion is saved to D1
-      fetchHistory();
+      if (session) fetchHistory();
     } catch (e) { 
       alert("Conversion Failed. Check your Cloudflare Environment Variables."); 
     } finally { 
@@ -86,15 +89,12 @@ function App() {
     setOutput(item.playwright);
     setBaseUrl(item.baseUrl);
     setMeta({ model: item.model });
-    // Switch to input view to see the restored code
     setActiveTab('input');
-    if (window.innerWidth >= 1024) {
-      setTimeout(() => Prism.highlightAll(), 10);
-    }
+    setTimeout(() => Prism.highlightAll(), 10);
   };
 
   const deleteHistoryItem = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent loading the item when deleting
+    e.stopPropagation();
     try {
       const res = await fetch(`/api/history?id=${id}`, { method: 'DELETE' });
       if (res.ok) fetchHistory();
@@ -104,7 +104,7 @@ function App() {
   };
 
   const resetContext = () => {
-    if (confirm("Reset current editors? (History will be kept)")) {
+    if (confirm("Reset current editors?")) {
       setInput('');
       setHtmlContext('');
       setScreenshot(null);
@@ -129,17 +129,27 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleLogin = async () => {
+    await authClient.signIn.social({
+      provider: "google",
+      callbackURL: window.location.origin
+    });
+  };
+
+  const handleLogout = async () => {
+    await authClient.signOut();
+  };
+
   return (
     <div className="flex flex-col lg:flex-row h-[100dvh] w-full font-sans transition-colors duration-300 dark:bg-[#0a0a0a] bg-slate-50 relative overflow-hidden">
       
-      {/* GLOBAL TOAST */}
       {copied && (
-        <div className="fixed top-5 lg:top-20 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white text-xs font-bold px-6 py-2.5 rounded-full shadow-2xl flex items-center gap-2 animate-in">
+        <div className="fixed top-5 lg:top-20 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white text-xs font-bold px-6 py-2.5 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-4">
           <Check size={14} /> Copied to Clipboard
         </div>
       )}
 
-      {/* Sidebar - Settings & History */}
+      {/* Sidebar */}
       <aside className={`
         ${(activeTab === 'context' || activeTab === 'history') ? 'flex' : 'hidden'} 
         lg:flex lg:w-80 w-full flex-1 lg:flex-none border-r dark:border-zinc-800 border-slate-200 dark:bg-zinc-950 bg-white flex-col z-20 overflow-hidden shrink-0
@@ -155,7 +165,30 @@ function App() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Settings Section - Visible on Desktop or mobile 'context' tab */}
+          {/* Auth Section */}
+          <section>
+            {!session ? (
+              <button 
+                onClick={handleLogin}
+                className="w-full flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed dark:border-zinc-800 border-slate-200 dark:text-zinc-400 text-slate-500 hover:border-indigo-500 hover:text-indigo-500 transition-all text-xs font-bold uppercase"
+              >
+                <LogIn size={14} /> Sign in with Google
+              </button>
+            ) : (
+              <div className="flex items-center justify-between p-3 rounded-lg dark:bg-zinc-900 bg-slate-50 border dark:border-zinc-800 border-slate-200">
+                <div className="flex items-center gap-3">
+                  <img src={session.user.image || ''} className="w-8 h-8 rounded-full border dark:border-zinc-700" alt="avatar" />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold dark:text-zinc-200 text-slate-700 truncate w-24">{session.user.name}</span>
+                    <button onClick={handleLogout} className="text-[9px] text-red-500 font-bold uppercase text-left hover:underline">Sign Out</button>
+                  </div>
+                </div>
+                <User size={14} className="text-zinc-600" />
+              </div>
+            )}
+          </section>
+
+          {/* Settings Section */}
           <div className={activeTab === 'history' ? 'lg:block hidden' : 'block'}>
             <section className="space-y-3">
               <div className="flex justify-between items-center">
@@ -197,13 +230,17 @@ function App() {
             </section>
           </div>
 
-          {/* History Section - Visible on Desktop or mobile 'history' tab */}
+          {/* History Section */}
           <div className={activeTab === 'context' ? 'lg:block hidden pt-4' : 'block pt-2'}>
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500 flex items-center gap-2 mb-4">
               <History size={12} /> Recent Conversions
             </label>
             <div className="space-y-3">
-              {history.length === 0 ? (
+              {!session ? (
+                 <div className="text-[9px] text-slate-400 uppercase font-bold py-8 text-center border border-dashed dark:border-zinc-800 rounded-lg flex flex-col items-center gap-2 px-4">
+                  <span>Sign in to view history</span>
+                 </div>
+              ) : history.length === 0 ? (
                 <div className="text-[10px] text-slate-400 italic py-8 text-center border border-dashed dark:border-zinc-800 rounded-lg">
                   No conversions saved yet
                 </div>
@@ -254,9 +291,7 @@ function App() {
           </button>
         </header>
 
-        {/* Panes Container */}
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* Gherkin Input Pane */}
           <div className={`flex-1 p-0 relative border-r dark:border-zinc-800 border-slate-200 ${activeTab === 'input' ? 'flex' : 'hidden lg:flex'}`}>
             <textarea 
               className="w-full h-full dark:bg-[#0d0d0d] bg-white p-6 lg:p-10 outline-none dark:text-zinc-200 text-slate-700 font-mono text-sm leading-relaxed resize-none"
@@ -265,7 +300,6 @@ function App() {
             />
           </div>
 
-          {/* Playwright Output Pane */}
           <div className={`flex-1 p-0 relative dark:bg-[#080808] bg-slate-100 group overflow-auto ${activeTab === 'output' ? 'flex' : 'hidden lg:flex'}`}>
             <div className="absolute top-4 lg:top-6 right-4 lg:right-8 flex gap-2 z-10">
               <button onClick={copyToClipboard} disabled={!output} className="p-2 bg-white dark:bg-zinc-900 border dark:border-zinc-800 border-slate-200 rounded-lg shadow-sm hover:scale-110 transition-all text-slate-500"><Copy size={16} /></button>
@@ -280,33 +314,21 @@ function App() {
         </div>
       </main>
 
-      {/* Mobile Tab Bar - Persistently at the bottom */}
+      {/* Mobile Tab Bar */}
       <nav className="lg:hidden h-20 pb-4 flex border-t dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
-        <button 
-          onClick={() => setActiveTab('input')} 
-          className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'input' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}
-        >
+        <button onClick={() => setActiveTab('input')} className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'input' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}>
           <FileText size={18} />
           <span className="text-[9px] font-bold uppercase">Gherkin</span>
         </button>
-        <button 
-          onClick={() => setActiveTab('output')} 
-          className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'output' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}
-        >
+        <button onClick={() => setActiveTab('output')} className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'output' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}>
           <Code size={18} />
           <span className="text-[9px] font-bold uppercase">Code</span>
         </button>
-        <button 
-          onClick={() => setActiveTab('history')} 
-          className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'history' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}
-        >
+        <button onClick={() => setActiveTab('history')} className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'history' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}>
           <History size={18} />
           <span className="text-[9px] font-bold uppercase">History</span>
         </button>
-        <button 
-          onClick={() => setActiveTab('context')} 
-          className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'context' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}
-        >
+        <button onClick={() => setActiveTab('context')} className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'context' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}>
           <Settings2 size={18} />
           <span className="text-[9px] font-bold uppercase">Setup</span>
         </button>

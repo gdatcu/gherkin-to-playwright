@@ -1,15 +1,23 @@
-// functions/api/convert.ts
+import { getAuth } from "../_auth";
 
 interface Env {
-  DB: D1Database; // Added D1 Binding
+  DB: D1Database;
   GROQ_API_KEY: string;
   GEMINI_API_KEY: string;
   GROQ_MODEL: string;
   GEMINI_MODEL: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  BETTER_AUTH_SECRET: string;
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
+  const auth = getAuth(env);
+  
+  // 1. Get Session for userId
+  const session = await auth.api.getSession({ headers: request.headers });
+  const userId = session?.user?.id || null;
 
   try {
     const { gherkin, systemPrompt, screenshot, baseUrl, htmlContext } = await request.json() as any;
@@ -54,17 +62,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const cleanedCode = rawCode.replace(/```typescript|```|```javascript/g, '').trim();
     const modelLabel = useGemini ? 'Gemini' : 'Groq';
 
-    // SEAMLESS INTEGRATION: Save to D1 Database
+    // 2. Save to D1 Database with userId
     try {
       const id = crypto.randomUUID();
       await env.DB.prepare(
-        "INSERT INTO conversion_history (id, gherkin, playwright, baseUrl, model) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO conversion_history (id, gherkin, playwright, baseUrl, model, userId) VALUES (?, ?, ?, ?, ?, ?)"
       )
-      .bind(id, gherkin, cleanedCode, baseUrl, modelLabel)
+      .bind(id, gherkin, cleanedCode, baseUrl, modelLabel, userId)
       .run();
     } catch (dbErr) {
       console.error("DB Save Failed", dbErr);
-      // We don't fail the request if just the history save fails
     }
 
     return new Response(JSON.stringify({ 
