@@ -4,7 +4,24 @@
 
 @layer base {
   *, ::after, ::before { border-color: var(--color-zinc-800); }
-  html { transition: background-color 0.3s ease; }
+  
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    transition: background-color 0.3s ease;
+  }
+
+  body { 
+    overscroll-behavior-y: none; 
+    @apply antialiased;
+  }
+
+  /* Prevent iOS Safari from zooming in on input focus */
+  textarea, input {
+    font-size: 16px !important;
+  }
 }
 
 @theme {
@@ -29,12 +46,20 @@ textarea::-webkit-resizer {
   border-color: transparent var(--color-indigo-600) var(--color-indigo-600) transparent;
 }
 
-/* Prism.js Theming: High-Contrast Architect Style */
+/* Prism.js Theming: Architect Style */
 code[class*="language-"], pre[class*="language-"] {
     color: #f8f8f2;
     background: none;
     font-family: ui-monospace, monospace;
     line-height: 1.6;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+@media (min-width: 1024px) {
+  code[class*="language-"], pre[class*="language-"] {
+      white-space: pre;
+  }
 }
 
 .dark .token.comment { color: #8292a2; font-style: italic; }
