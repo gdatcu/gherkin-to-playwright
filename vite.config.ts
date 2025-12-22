@@ -1,20 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-// import { cloudflare } from '@cloudflare/vite-plugin'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    // cloudflare(),
     VitePWA({
-      // FIX: Setting this to true will unregister any existing service workers
-      // and prevent them from caching your app in the future, which solves
-      // the "logged in only after hard reset" issue.
-      selfDestroying: true,
       registerType: 'autoUpdate',
+      // Re-enable the PWA (remove selfDestroying)
+      injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'logo192.png', 'logo512.png'],
       manifest: {
         name: 'ShipFast QA: Gherkin-to-Playwright',
@@ -37,12 +33,25 @@ export default defineConfig({
             purpose: 'any maskable'
           }
         ]
+      },
+      workbox: {
+        // This is the fix: It tells the PWA to always check the network 
+        // for the main page so it sees your login cookie immediately.
+        navigateFallbackDenylist: [/^\/api/], // Never handle API calls via PWA cache
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst', // Always try network first for the HTML shell
+            options: {
+              cacheName: 'html-cache',
+            },
+          },
+        ],
       }
     }),
   ],
   server: {
     proxy: {
-      // Directs all /api calls to the Wrangler/Pages Functions local server
       '/api': {
         target: 'http://127.0.0.1:8788', 
         changeOrigin: true,
