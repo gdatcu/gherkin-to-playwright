@@ -6,8 +6,6 @@ import * as schema from "./db-schema";
 
 export const getAuth = (env: any, request: Request) => {
   const url = new URL(request.url);
-  const prodDomain = "https://gherkin-to-playwright.pages.dev";
-  const baseURL = url.origin.includes("127.0.0.1") ? url.origin : prodDomain;
 
   return betterAuth({
     database: drizzleAdapter(
@@ -23,7 +21,8 @@ export const getAuth = (env: any, request: Request) => {
       }
     ),
     secret: env.BETTER_AUTH_SECRET,
-    baseURL: baseURL,
+    // FIX: Always use the current origin to prevent domain mismatches
+    baseURL: url.origin,
     
     socialProviders: {
       google: {
@@ -34,7 +33,8 @@ export const getAuth = (env: any, request: Request) => {
 
     trustedOrigins: [
       "http://127.0.0.1:8788",
-      "https://gherkin-to-playwright.pages.dev"
+      "https://gherkin-to-playwright.pages.dev",
+      url.origin // Trust the current deployment domain
     ],
 
     advanced: {
@@ -43,7 +43,6 @@ export const getAuth = (env: any, request: Request) => {
         sameSite: "Lax",
         secure: true
       },
-      // Forces the session to persist across browser restarts
       sessionCookieMaxAge: 60 * 60 * 24 * 7, 
     }
   });

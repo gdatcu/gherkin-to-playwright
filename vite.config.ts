@@ -10,6 +10,10 @@ export default defineConfig({
     tailwindcss(),
     // cloudflare(),
     VitePWA({
+      // FIX: Setting this to true will unregister any existing service workers
+      // and prevent them from caching your app in the future, which solves
+      // the "logged in only after hard reset" issue.
+      selfDestroying: true,
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'logo192.png', 'logo512.png'],
       manifest: {

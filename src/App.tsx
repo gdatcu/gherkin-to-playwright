@@ -7,7 +7,6 @@ import {
 import { convertGherkin } from './services/ai-client';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
-
 import { authClient } from "./lib/auth-client";
 
 interface HistoryItem {
@@ -36,19 +35,18 @@ function App() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<'context' | 'input' | 'output' | 'history'>('input');
 
-  // BetterAuth Hooks
-  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const { data: session } = authClient.useSession();
 
   const fetchHistory = async () => {
-    if (!session) return; // Don't fetch if not logged in
+    if (!session) return;
     try {
-      const res = await fetch('/api/history');
+      const res = await fetch('/api/history', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setHistory(data);
       }
     } catch (e) {
-      console.error("Failed to fetch history from D1");
+      console.error("Failed to fetch history");
     }
   };
 
@@ -58,17 +56,31 @@ function App() {
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
     
     if (session) fetchHistory();
-    else setHistory([]); // Clear history UI if logged out
+    else setHistory([]);
 
     Prism.highlightAll();
   }, [isDark, session]);
 
+  // Auth Redirect Cache Buster
   useEffect(() => {
-    if (output) {
-      Prism.highlightAll();
-      if (window.innerWidth < 1024) setActiveTab('output');
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('t')) {
+      // Physically reloads the page to clear the "logged out" edge cache
+      window.location.href = window.location.origin;
     }
-  }, [output]);
+  }, []);
+
+  const handleLogin = async () => {
+    await authClient.signIn.social({
+      provider: "google",
+      callbackURL: `${window.location.origin}/?t=${Date.now()}`, 
+    });
+  };
+
+  const handleLogout = async () => {
+    await authClient.signOut();
+    window.location.href = "/";
+  };    
 
   const handleConvert = async () => {
     setLoading(true);
@@ -78,7 +90,7 @@ function App() {
       setMeta({ model: data.modelUsed });
       if (session) fetchHistory();
     } catch (e) { 
-      alert("Conversion Failed. Check your Cloudflare Environment Variables."); 
+      alert("Conversion Failed."); 
     } finally { 
       setLoading(false); 
     }
@@ -103,15 +115,6 @@ function App() {
     }
   };
 
-  const resetContext = () => {
-    if (confirm("Reset current editors?")) {
-      setInput('');
-      setHtmlContext('');
-      setScreenshot(null);
-      setOutput('');
-    }
-  };
-
   const copyToClipboard = () => {
     navigator.clipboard.writeText(output);
     setCopied(true);
@@ -129,34 +132,8 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-// Inside src/App.tsx
-
-const handleLogin = async () => {
-  await authClient.signIn.social({
-    provider: "google",
-    // We add a timestamp (?t=...) to the callback to kill any browser caching
-    callbackURL: `https://gherkin-to-playwright.pages.dev/?t=${Date.now()}`, 
-  });
-};
-
-// If you are using the useSession hook, add this to your main component 
-// to force a refresh if the URL contains our cache-buster
-useEffect(() => {
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('t')) {
-    // This physically reloads the page from the server, bypassing all caches
-    window.location.href = window.location.origin;
-  }
-}, []);
-
-const handleLogout = async () => {
-  await authClient.signOut();
-  window.location.href = "/";
-};    
-
   return (
     <div className="flex flex-col lg:flex-row h-[100dvh] w-full font-sans transition-colors duration-300 dark:bg-[#0a0a0a] bg-slate-50 relative overflow-hidden">
-      
       {copied && (
         <div className="fixed top-5 lg:top-20 left-1/2 -translate-x-1/2 z-[100] bg-indigo-600 text-white text-xs font-bold px-6 py-2.5 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-top-4">
           <Check size={14} /> Copied to Clipboard
@@ -179,7 +156,6 @@ const handleLogout = async () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Auth Section */}
           <section>
             {!session ? (
               <button 
@@ -202,15 +178,9 @@ const handleLogout = async () => {
             )}
           </section>
 
-          {/* Settings Section */}
           <div className={activeTab === 'history' ? 'lg:block hidden' : 'block'}>
             <section className="space-y-3">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500">Target URL</label>
-                <button onClick={resetContext} className="text-[10px] text-red-500 hover:text-red-400 font-bold uppercase flex items-center gap-1">
-                  <Trash2 size={12} /> Reset
-                </button>
-              </div>
+              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500">Target URL</label>
               <div className="flex items-center gap-2 px-3 py-2 dark:bg-zinc-900 bg-slate-50 border dark:border-zinc-800 border-slate-200 rounded-lg">
                 <Globe size={14} className="text-slate-400" />
                 <input className="bg-transparent border-none outline-none text-xs w-full dark:text-zinc-200 text-slate-700 font-medium" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
@@ -244,15 +214,14 @@ const handleLogout = async () => {
             </section>
           </div>
 
-          {/* History Section */}
           <div className={activeTab === 'context' ? 'lg:block hidden pt-4' : 'block pt-2'}>
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500 flex items-center gap-2 mb-4">
               <History size={12} /> Recent Conversions
             </label>
             <div className="space-y-3">
               {!session ? (
-                 <div className="text-[9px] text-slate-400 uppercase font-bold py-8 text-center border border-dashed dark:border-zinc-800 rounded-lg flex flex-col items-center gap-2 px-4">
-                  <span>Sign in to view history</span>
+                 <div className="text-[9px] text-slate-400 uppercase font-bold py-8 text-center border border-dashed dark:border-zinc-800 rounded-lg px-4">
+                  Sign in to view history
                  </div>
               ) : history.length === 0 ? (
                 <div className="text-[10px] text-slate-400 italic py-8 text-center border border-dashed dark:border-zinc-800 rounded-lg">
@@ -288,7 +257,6 @@ const handleLogout = async () => {
         </div>
       </aside>
 
-      {/* Main Workspace */}
       <main className={`flex-1 flex flex-col relative dark:bg-zinc-950 bg-white ${ (activeTab === 'context' || activeTab === 'history') ? 'hidden lg:flex' : 'flex'} overflow-hidden`}>
         <header className="h-16 border-b dark:border-zinc-800 border-slate-200 flex items-center justify-between px-4 lg:px-8 bg-inherit z-50 shrink-0">
           <div className="flex items-center gap-2 text-xs font-semibold dark:text-zinc-500 text-slate-400">
@@ -328,7 +296,6 @@ const handleLogout = async () => {
         </div>
       </main>
 
-      {/* Mobile Tab Bar */}
       <nav className="lg:hidden h-20 pb-4 flex border-t dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
         <button onClick={() => setActiveTab('input')} className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'input' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}>
           <FileText size={18} />
