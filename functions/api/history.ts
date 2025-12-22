@@ -1,36 +1,29 @@
+// functions/api/history.ts
 import { getAuth } from "../_auth";
 
-interface Env {
-  DB: D1Database;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
-  BETTER_AUTH_SECRET: string;
-}
-
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+export const onRequestGet = async (context: any) => {
   const { env, request } = context;
-  const auth = getAuth(env);
+  const auth = getAuth(env, request);
+  
   const session = await auth.api.getSession({ headers: request.headers });
 
-  // Safety: Only return history for logged-in users
   if (!session) {
-    return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json" } });
+    return new Response("Unauthorized", { status: 401 });
   }
 
+  // Filter results so users ONLY see their own data
   const { results } = await env.DB.prepare(
-    "SELECT * FROM conversion_history WHERE userId = ? ORDER BY timestamp DESC LIMIT 20"
+    "SELECT * FROM conversion_history WHERE userId = ? ORDER BY id DESC"
   )
   .bind(session.user.id)
   .all();
-  
-  return new Response(JSON.stringify(results), {
-    headers: { "Content-Type": "application/json" }
-  });
+
+  return Response.json(results);
 };
 
-export const onRequestDelete: PagesFunction<Env> = async (context) => {
+export const onRequestDelete = async (context: any) => {
   const { env, request } = context;
-  const auth = getAuth(env);
+  const auth = getAuth(env, request);
   const session = await auth.api.getSession({ headers: request.headers });
 
   if (!session) {
@@ -41,12 +34,12 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
   const id = url.searchParams.get("id");
 
   if (id) {
-    // Ensure the user owns the record they are trying to delete
+    // Ownership check: users can only delete their own records
     await env.DB.prepare("DELETE FROM conversion_history WHERE id = ? AND userId = ?")
       .bind(id, session.user.id)
       .run();
   } else {
-    // Delete all records belonging to THIS user
+    // Batch delete for current user only
     await env.DB.prepare("DELETE FROM conversion_history WHERE userId = ?")
       .bind(session.user.id)
       .run();

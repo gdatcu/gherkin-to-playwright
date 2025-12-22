@@ -4,7 +4,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./db-schema"; 
 
-export const getAuth = (env: any) => {
+export const getAuth = (env: any, request: Request) => {
+  const url = new URL(request.url);
+  const prodDomain = "https://gherkin-to-playwright.pages.dev";
+  const baseURL = url.origin.includes("127.0.0.1") ? url.origin : prodDomain;
+
   return betterAuth({
     database: drizzleAdapter(
       drizzle(env.DB, { schema }), 
@@ -18,9 +22,8 @@ export const getAuth = (env: any) => {
         },
       }
     ),
-    // Critical: These must match the URL in your browser address bar
     secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL, 
+    baseURL: baseURL,
     
     socialProviders: {
       google: {
@@ -28,5 +31,20 @@ export const getAuth = (env: any) => {
         clientSecret: env.GOOGLE_CLIENT_SECRET,
       },
     },
+
+    trustedOrigins: [
+      "http://127.0.0.1:8788",
+      "https://gherkin-to-playwright.pages.dev"
+    ],
+
+    advanced: {
+      useSecureCookies: !url.origin.includes("127.0.0.1"),
+      cookieCustomAttributes: {
+        sameSite: "Lax",
+        secure: true
+      },
+      // Forces the session to persist across browser restarts
+      sessionCookieMaxAge: 60 * 60 * 24 * 7, 
+    }
   });
 };

@@ -1,21 +1,11 @@
+// functions/api/convert.ts
 import { getAuth } from "../_auth";
 
-interface Env {
-  DB: D1Database;
-  GROQ_API_KEY: string;
-  GEMINI_API_KEY: string;
-  GROQ_MODEL: string;
-  GEMINI_MODEL: string;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
-  BETTER_AUTH_SECRET: string;
-}
-
-export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const { request, env } = context;
-  const auth = getAuth(env);
+export const onRequest = async (context: any) => {
+  const { env, request } = context;
+  const auth = getAuth(env, request); 
   
-  // 1. Get Session for userId
+  // 1. Get Session safely
   const session = await auth.api.getSession({ headers: request.headers });
   const userId = session?.user?.id || null;
 
@@ -50,7 +40,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(useGemini ? {} : { 'Authorization': `Bearer ${env.GROQ_API_KEY}` }) },
+      headers: { 
+        'Content-Type': 'application/json', 
+        ...(useGemini ? {} : { 'Authorization': `Bearer ${env.GROQ_API_KEY}` }) 
+      },
       body: JSON.stringify(body)
     });
 
@@ -62,7 +55,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const cleanedCode = rawCode.replace(/```typescript|```|```javascript/g, '').trim();
     const modelLabel = useGemini ? 'Gemini' : 'Groq';
 
-    // 2. Save to D1 Database with userId
+    // 2. Save to D1 Database (Now including userId column)
     try {
       const id = crypto.randomUUID();
       await env.DB.prepare(
@@ -71,7 +64,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       .bind(id, gherkin, cleanedCode, baseUrl, modelLabel, userId)
       .run();
     } catch (dbErr) {
-      console.error("DB Save Failed", dbErr);
+      console.error("History Save Failed:", dbErr);
     }
 
     return new Response(JSON.stringify({ 

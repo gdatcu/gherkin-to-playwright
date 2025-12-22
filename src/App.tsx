@@ -129,16 +129,30 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  const handleLogin = async () => {
-    await authClient.signIn.social({
-      provider: "google",
-      callbackURL: window.location.origin
-    });
-  };
+// Inside src/App.tsx
 
-  const handleLogout = async () => {
-    await authClient.signOut();
-  };
+const handleLogin = async () => {
+  await authClient.signIn.social({
+    provider: "google",
+    // We add a timestamp (?t=...) to the callback to kill any browser caching
+    callbackURL: `https://gherkin-to-playwright.pages.dev/?t=${Date.now()}`, 
+  });
+};
+
+// If you are using the useSession hook, add this to your main component 
+// to force a refresh if the URL contains our cache-buster
+useEffect(() => {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('t')) {
+    // This physically reloads the page from the server, bypassing all caches
+    window.location.href = window.location.origin;
+  }
+}, []);
+
+const handleLogout = async () => {
+  await authClient.signOut();
+  window.location.href = "/";
+};    
 
   return (
     <div className="flex flex-col lg:flex-row h-[100dvh] w-full font-sans transition-colors duration-300 dark:bg-[#0a0a0a] bg-slate-50 relative overflow-hidden">
