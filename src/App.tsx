@@ -5,7 +5,7 @@ import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
 
 // Infrastructure
-import { convertGherkin, healSelectors } from './services/ai-client'; // Added healSelectors
+import { convertGherkin, healSelectors, draftGherkin } from './services/ai-client';
 import { authClient } from "./lib/auth-client";
 import { useTheme } from './hooks/useTheme';
 import { copyToClipboard } from './utils/clipboard';
@@ -30,7 +30,8 @@ function App() {
   const [output, setOutput] = useState('');
   const [meta, setMeta] = useState<{ model?: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [healing, setHealing] = useState(false); // Goal #3 state
+  const [healing, setHealing] = useState(false);
+  const [refactoring, setRefactoring] = useState(false);
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('input');
@@ -64,17 +65,25 @@ function App() {
     finally { setLoading(false); }
   };
 
-  // Goal #3: Handle Selector Healing
   const handleHealSelectors = async () => {
     if (!htmlContext) return alert("Paste HTML context in the sidebar first.");
     setHealing(true);
     try {
       const data = await healSelectors(htmlContext, input);
-      // Prepend analysis to the current output
       setOutput(`/* ARCHITECT LOCATOR ANALYSIS */\n${data.analysis || data.code}\n\n${output}`);
       setActiveTab('output');
     } catch (e) { alert("Healing Analysis Failed."); }
     finally { setHealing(false); }
+  };
+
+  const handleRefactor = async () => {
+    if (!input) return alert("Paste your manual notes in the workspace first.");
+    setRefactoring(true);
+    try {
+      const data = await draftGherkin(input);
+      setInput(data.gherkin || data.code);
+    } catch (e) { alert("Refactoring Failed."); }
+    finally { setRefactoring(false); }
   };
 
   const handleCopy = async () => {
@@ -105,8 +114,8 @@ function App() {
         htmlContext={htmlContext} setHtmlContext={setHtmlContext}
         screenshot={screenshot} setScreenshot={setScreenshot} 
         history={history}
-        isHealing={healing} // New Prop
-        onHealSelectors={handleHealSelectors} // New Prop
+        isHealing={healing}
+        onHealSelectors={handleHealSelectors}
         loadFromHistory={(item: HistoryItem) => {
           setInput(item.gherkin); setOutput(item.playwright); setBaseUrl(item.baseUrl); 
           setActiveTab('input'); setTimeout(() => Prism.highlightAll(), 10);
@@ -119,8 +128,16 @@ function App() {
       />
 
       <main className={`flex-1 flex flex-col relative dark:bg-zinc-950 bg-white ${ (activeTab === 'context' || activeTab === 'history') ? 'hidden lg:flex' : 'flex'} overflow-hidden`}>
-        <Header loading={loading} input={input} meta={meta} onConvert={handleConvert} />
+        <Header 
+          loading={loading} 
+          refactoring={refactoring} 
+          input={input} 
+          meta={meta} 
+          onConvert={handleConvert} 
+          onRefactor={handleRefactor} 
+        />
         <Workspace 
+          isDark={isDark} // Passed isDark for theme sync
           activeTab={activeTab} 
           input={input} 
           setInput={setInput} 
