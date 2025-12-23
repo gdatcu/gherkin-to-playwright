@@ -9,9 +9,9 @@ import { convertGherkin } from './services/ai-client';
 import { authClient } from "./lib/auth-client";
 import { useTheme } from './hooks/useTheme';
 import { copyToClipboard } from './utils/clipboard';
-import { downloadPlaywrightFile } from './utils/file';
+import { downloadProjectZip } from './utils/file'; // Updated import
 
-// FIX: Use import type for types
+// Types
 import type { HistoryItem, TemplateType, TabType } from './types';
 
 // Components
@@ -41,9 +41,7 @@ function App() {
     try {
       const res = await fetch('/api/history', { cache: 'no-store' });
       if (res.ok) setHistory(await res.json());
-    } catch (e) { 
-      console.error("History fetch failed"); 
-    }
+    } catch (e) { console.error("History fetch failed"); }
   };
 
   useEffect(() => {
@@ -51,11 +49,6 @@ function App() {
     else setHistory([]);
     Prism.highlightAll();
   }, [session]);
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('t')) window.location.href = window.location.origin;
-  }, []);
 
   const handleConvert = async () => {
     setLoading(true);
@@ -66,11 +59,8 @@ function App() {
       if (session) fetchHistory();
       if (window.innerWidth < 1024) setActiveTab('output');
       setTimeout(() => Prism.highlightAll(), 10);
-    } catch (e) { 
-      alert("Conversion Failed."); 
-    } finally { 
-      setLoading(false); 
-    }
+    } catch (e) { alert("Conversion Failed."); }
+    finally { setLoading(false); }
   };
 
   const handleCopy = async () => {
@@ -93,7 +83,7 @@ function App() {
         isDark={isDark} setIsDark={setIsDark} 
         activeTab={activeTab} setActiveTab={setActiveTab}
         session={session} 
-        handleLogin={() => authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}/?t=${Date.now()}` })}
+        handleLogin={() => authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}` })}
         handleLogout={async () => { await authClient.signOut(); window.location.href = "/"; }}
         baseUrl={baseUrl} setBaseUrl={setBaseUrl} 
         resetContext={() => { setInput(''); setOutput(''); setHtmlContext(''); setScreenshot(null); }}
@@ -120,7 +110,8 @@ function App() {
           setInput={setInput} 
           output={output} 
           onCopy={handleCopy} 
-          onDownload={() => downloadPlaywrightFile(output)} 
+          // Goal #1: Passing output and template for intelligent ZIP generation
+          onDownload={() => downloadProjectZip(output, template)} 
         />
       </main>
 
