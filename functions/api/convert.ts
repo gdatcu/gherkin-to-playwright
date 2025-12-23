@@ -1,17 +1,20 @@
 // functions/api/convert.ts
 import { getAuth } from "../_auth";
+import { TEMPLATES } from "./prompt";
 
 export const onRequest = async (context: any) => {
   const { env, request } = context;
   const auth = getAuth(env, request); 
   
-  // 1. Get Session safely
   const session = await auth.api.getSession({ headers: request.headers });
   const userId = session?.user?.id || null;
 
   try {
-    const { gherkin, systemPrompt, screenshot, baseUrl, htmlContext } = await request.json() as any;
+    const { gherkin, template, screenshot, baseUrl, htmlContext } = await request.json() as any;
     
+    // Select correct template prompt
+    const systemPrompt = TEMPLATES[template as keyof typeof TEMPLATES] || TEMPLATES.pom;
+
     const needsVision = !!screenshot;
     const hasHtml = !!htmlContext;
     const isLargeFile = gherkin.length > 3000 || (htmlContext?.length > 1000);
@@ -55,7 +58,6 @@ export const onRequest = async (context: any) => {
     const cleanedCode = rawCode.replace(/```typescript|```|```javascript/g, '').trim();
     const modelLabel = useGemini ? 'Gemini' : 'Groq';
 
-    // 2. Save to D1 Database (Now including userId column)
     try {
       const id = crypto.randomUUID();
       await env.DB.prepare(
