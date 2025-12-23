@@ -1,11 +1,13 @@
 // src/services/ai-client.ts
+import type { PageObjectFile } from '../types';
 
 export const convertGherkin = async (
   text: string, 
   baseUrl: string, 
   screenshot: string | null, 
   htmlContext: string,
-  template: string = 'pom'
+  template: string = 'pom',
+  pageObjectLibrary: PageObjectFile[] = [] // Goal: Pass existing library
 ) => {
   const response = await fetch('/api/convert', {
     method: 'POST',
@@ -15,7 +17,8 @@ export const convertGherkin = async (
         baseUrl: baseUrl,
         screenshot: screenshot,
         htmlContext: htmlContext,
-        template: template 
+        template: template,
+        pageObjectLibrary: pageObjectLibrary // Context injection
     }),
   });
 
@@ -27,10 +30,6 @@ export const convertGherkin = async (
   return response.json();
 };
 
-/**
- * Goal #3: Self-Healing Logic
- * Analyzes HTML Context to suggest resilient Playwright locators.
- */
 export const healSelectors = async (html: string, gherkin: string) => {
   const response = await fetch('/api/convert', {
     method: 'POST',
@@ -46,10 +45,6 @@ export const healSelectors = async (html: string, gherkin: string) => {
   return response.json();
 };
 
-/**
- * Goal #5: Test-to-Gherkin Logic
- * Refactors messy manual notes into standardized Gherkin.
- */
 export const draftGherkin = async (rawNotes: string) => {
   const response = await fetch('/api/convert', {
     method: 'POST',

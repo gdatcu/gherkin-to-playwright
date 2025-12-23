@@ -31,16 +31,26 @@ export const onRequest = async (context: any) => {
   const userId = session?.user?.id || null;
 
   try {
-    const { gherkin, template, screenshot, baseUrl, htmlContext, mode } = await request.json() as any;
+    const { gherkin, template, screenshot, baseUrl, htmlContext, mode, pageObjectLibrary } = await request.json() as any;
     
-    // Select correct template prompt based on mode (Goal #3 & #5) or standard template
+    // 1. Initial System Prompt Selection
     let systemPrompt = TEMPLATES[template as keyof typeof TEMPLATES] || TEMPLATES.pom;
+
+    // 2. Project-Aware Context Injection (Existing Page Object Memory)
+    // Only inject library context if we are in standard conversion mode
+    if (!mode && pageObjectLibrary && pageObjectLibrary.length > 0) {
+      const libraryContext = pageObjectLibrary.map((f: any) => `FILE: ${f.name}\n${f.content}`).join('\n\n');
+      systemPrompt += `\n\nEXISTING PAGE OBJECT LIBRARY:\nUse the following existing Page Objects and their methods if relevant to the scenario. Reuse existing methods instead of generating new element interactions. Maintain current naming conventions and imports.\n${libraryContext}`;
+    }
+
+    // 3. Mode-Specific Overrides (Refactor or Heal)
     if (mode === 'refactor') systemPrompt = REFACTOR_PROMPT;
     if (mode === 'heal') systemPrompt = HEAL_PROMPT;
 
+    // 4. Intelligence Routing Logic
     const needsVision = !!screenshot;
     const hasHtml = !!htmlContext;
-    const isLargeFile = gherkin.length > 3000 || (htmlContext?.length > 1000);
+    const isLargeFile = gherkin.length > 3000 || (htmlContext?.length > 1000) || (pageObjectLibrary?.length > 0);
     
     // Force Gemini for Vision, Large Context, or Healing Analysis
     const useGemini = needsVision || hasHtml || isLargeFile || mode === 'heal';
@@ -68,6 +78,7 @@ export const onRequest = async (context: any) => {
       };
     }
 
+    // 5. AI Execution
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 
@@ -82,11 +93,11 @@ export const onRequest = async (context: any) => {
       ? data.candidates?.[0]?.content?.parts?.[0]?.text 
       : data.choices?.[0]?.message?.content;
 
-    // Clean markdown and artifacts
+    // 6. Output Cleaning
     const cleanedResult = rawResult.replace(/```typescript|```javascript|```gherkin|```/g, '').trim();
     const modelLabel = useGemini ? 'Gemini' : 'Groq';
 
-    // Persistence: Save to history ONLY for full conversions (where mode is absent)
+    // 7. Persistence: Save to history ONLY for full conversions
     if (!mode) {
       try {
         const id = crypto.randomUUID();

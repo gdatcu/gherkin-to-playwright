@@ -4,17 +4,14 @@ import { Check } from 'lucide-react';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
 
-// Infrastructure
 import { convertGherkin, healSelectors, draftGherkin } from './services/ai-client';
 import { authClient } from "./lib/auth-client";
 import { useTheme } from './hooks/useTheme';
 import { copyToClipboard } from './utils/clipboard';
 import { downloadProjectZip } from './utils/file';
 
-// Types
-import type { HistoryItem, TemplateType, TabType } from './types';
+import type { HistoryItem, TemplateType, TabType, PageObjectFile } from './types';
 
-// Components
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Workspace } from './components/Workspace';
@@ -27,6 +24,7 @@ function App() {
   const [baseUrl, setBaseUrl] = useState('https://app.example.com');
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [htmlContext, setHtmlContext] = useState('');
+  const [pageObjectLibrary, setPageObjectLibrary] = useState<PageObjectFile[]>([]); // New State
   const [output, setOutput] = useState('');
   const [meta, setMeta] = useState<{ model?: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,12 +53,12 @@ function App() {
   const handleConvert = async () => {
     setLoading(true);
     try {
-      const data = await convertGherkin(input, baseUrl, screenshot, htmlContext, template);
+      // Pass the library to the converter
+      const data = await convertGherkin(input, baseUrl, screenshot, htmlContext, template, pageObjectLibrary);
       setOutput(data.code);
       setMeta({ model: data.modelUsed });
       if (session) fetchHistory();
       if (window.innerWidth < 1024) setActiveTab('output');
-      setTimeout(() => Prism.highlightAll(), 10);
     } catch (e) { alert("Conversion Failed."); }
     finally { setLoading(false); }
   };
@@ -109,16 +107,17 @@ function App() {
         handleLogin={() => authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}` })}
         handleLogout={async () => { await authClient.signOut(); window.location.href = "/"; }}
         baseUrl={baseUrl} setBaseUrl={setBaseUrl} 
-        resetContext={() => { setInput(''); setOutput(''); setHtmlContext(''); setScreenshot(null); }}
+        resetContext={() => { setInput(''); setOutput(''); setHtmlContext(''); setScreenshot(null); setPageObjectLibrary([]); }}
         template={template} setTemplate={setTemplate} 
         htmlContext={htmlContext} setHtmlContext={setHtmlContext}
         screenshot={screenshot} setScreenshot={setScreenshot} 
+        pageObjectLibrary={pageObjectLibrary} setPageObjectLibrary={setPageObjectLibrary} // New Props
         history={history}
         isHealing={healing}
         onHealSelectors={handleHealSelectors}
         loadFromHistory={(item: HistoryItem) => {
           setInput(item.gherkin); setOutput(item.playwright); setBaseUrl(item.baseUrl); 
-          setActiveTab('input'); setTimeout(() => Prism.highlightAll(), 10);
+          setActiveTab('input');
         }}
         deleteHistoryItem={async (id: string, e: React.MouseEvent) => {
           e.stopPropagation();
@@ -128,23 +127,8 @@ function App() {
       />
 
       <main className={`flex-1 flex flex-col relative dark:bg-zinc-950 bg-white ${ (activeTab === 'context' || activeTab === 'history') ? 'hidden lg:flex' : 'flex'} overflow-hidden`}>
-        <Header 
-          loading={loading} 
-          refactoring={refactoring} 
-          input={input} 
-          meta={meta} 
-          onConvert={handleConvert} 
-          onRefactor={handleRefactor} 
-        />
-        <Workspace 
-          isDark={isDark} // Passed isDark for theme sync
-          activeTab={activeTab} 
-          input={input} 
-          setInput={setInput} 
-          output={output} 
-          onCopy={handleCopy} 
-          onDownload={() => downloadProjectZip(output, template)} 
-        />
+        <Header loading={loading} refactoring={refactoring} input={input} meta={meta} onConvert={handleConvert} onRefactor={handleRefactor} />
+        <Workspace isDark={isDark} activeTab={activeTab} input={input} setInput={setInput} output={output} onCopy={handleCopy} onDownload={() => downloadProjectZip(output, template)} />
       </main>
 
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -152,4 +136,4 @@ function App() {
   );
 }
 
-export default App;
+export default App; 
