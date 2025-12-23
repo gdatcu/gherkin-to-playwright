@@ -1,0 +1,11 @@
+// src/utils/clipboard.ts
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    if (!text) return false;
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    console.error('Failed to copy: ', err);
+    return false;
+  }
+};

@@ -1,17 +1,40 @@
 // src/components/Sidebar.tsx
-import { 
-  Globe, Image as ImageIcon, Zap, Sun, Moon, Trash2, 
-  History, Clock, X 
-} from 'lucide-react';
+import React from 'react';
+import { Globe, Image as ImageIcon, Zap, Sun, Moon, Trash2, History, Clock, X } from 'lucide-react';
 import { AuthStatus } from './AuthStatus';
 import { TemplateSelector } from './TemplateSelector';
+
+// FIX: Use import type for types
+import type { HistoryItem, TemplateType, TabType } from '../types';
+
+interface SidebarProps {
+  isDark: boolean;
+  setIsDark: (val: boolean) => void;
+  activeTab: TabType;
+  setActiveTab: (tab: TabType) => void;
+  session: any;
+  handleLogin: () => void;
+  handleLogout: () => void;
+  baseUrl: string;
+  setBaseUrl: (val: string) => void;
+  resetContext: () => void;
+  template: TemplateType;
+  setTemplate: (val: TemplateType) => void;
+  htmlContext: string;
+  setHtmlContext: (val: string) => void;
+  screenshot: string | null;
+  setScreenshot: (val: string | null) => void;
+  history: HistoryItem[];
+  loadFromHistory: (item: HistoryItem) => void;
+  deleteHistoryItem: (id: string, e: React.MouseEvent) => void;
+}
 
 export const Sidebar = ({ 
   isDark, setIsDark, activeTab, session, handleLogin, handleLogout, 
   baseUrl, setBaseUrl, resetContext, template, setTemplate, 
   htmlContext, setHtmlContext, screenshot, setScreenshot,
   history, loadFromHistory, deleteHistoryItem
-}: any) => (
+}: SidebarProps) => (
   <aside className={`
     ${(activeTab === 'context' || activeTab === 'history') ? 'flex' : 'hidden'} 
     lg:flex lg:w-80 w-full flex-1 lg:flex-none border-r dark:border-zinc-800 border-slate-200 dark:bg-zinc-950 bg-white flex-col z-20 overflow-hidden shrink-0
@@ -86,7 +109,7 @@ export const Sidebar = ({
               No conversions saved yet
             </div>
           ) : (
-            history.map((item: any) => (
+            history.map((item: HistoryItem) => (
               <div 
                 key={item.id}
                 onClick={() => loadFromHistory(item)}

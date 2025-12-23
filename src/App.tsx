@@ -1,29 +1,30 @@
 // src/App.tsx
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
-import { convertGherkin } from './services/ai-client';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
+
+// Infrastructure
+import { convertGherkin } from './services/ai-client';
 import { authClient } from "./lib/auth-client";
+import { useTheme } from './hooks/useTheme';
+import { copyToClipboard } from './utils/clipboard';
+import { downloadPlaywrightFile } from './utils/file';
+
+// FIX: Use import type for types
+import type { HistoryItem, TemplateType, TabType } from './types';
+
+// Components
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Workspace } from './components/Workspace';
 import { MobileNav } from './components/MobileNav';
 
-interface HistoryItem {
-  id: string;
-  gherkin: string;
-  playwright: string;
-  baseUrl: string;
-  model: string;
-  timestamp: string;
-}
-
 function App() {
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') !== 'light');
-  const [template, setTemplate] = useState<'pom' | 'step-defs'>('pom');
+  const { isDark, setIsDark } = useTheme();
+  const [template, setTemplate] = useState<TemplateType>('pom');
   const [input, setInput] = useState('');
-  const [baseUrl, setBaseUrl] = useState('[https://app.example.com](https://app.example.com)');
+  const [baseUrl, setBaseUrl] = useState('https://app.example.com');
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [htmlContext, setHtmlContext] = useState('');
   const [output, setOutput] = useState('');
@@ -31,7 +32,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'context' | 'input' | 'output' | 'history'>('input');
+  const [activeTab, setActiveTab] = useState<TabType>('input');
 
   const { data: session } = authClient.useSession();
 
@@ -40,17 +41,16 @@ function App() {
     try {
       const res = await fetch('/api/history', { cache: 'no-store' });
       if (res.ok) setHistory(await res.json());
-    } catch (e) { console.error("History fetch failed"); }
+    } catch (e) { 
+      console.error("History fetch failed"); 
+    }
   };
 
   useEffect(() => {
-    const root = window.document.documentElement;
-    isDark ? root.classList.add('dark') : root.classList.remove('dark');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
     if (session) fetchHistory();
     else setHistory([]);
     Prism.highlightAll();
-  }, [isDark, session]);
+  }, [session]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -66,24 +66,19 @@ function App() {
       if (session) fetchHistory();
       if (window.innerWidth < 1024) setActiveTab('output');
       setTimeout(() => Prism.highlightAll(), 10);
-    } catch (e) { alert("Conversion Failed."); } finally { setLoading(false); }
+    } catch (e) { 
+      alert("Conversion Failed."); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(output);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const downloadFile = () => {
-    if (!output) return;
-    const blob = new Blob([output], { type: 'text/typescript' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'playwright-test.spec.ts';
-    link.click();
-    URL.revokeObjectURL(url);
+  const handleCopy = async () => {
+    const success = await copyToClipboard(output);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (
@@ -95,19 +90,38 @@ function App() {
       )}
 
       <Sidebar 
-        isDark={isDark} setIsDark={setIsDark} activeTab={activeTab} session={session} 
+        isDark={isDark} setIsDark={setIsDark} 
+        activeTab={activeTab} setActiveTab={setActiveTab}
+        session={session} 
         handleLogin={() => authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}/?t=${Date.now()}` })}
         handleLogout={async () => { await authClient.signOut(); window.location.href = "/"; }}
-        baseUrl={baseUrl} setBaseUrl={setBaseUrl} resetContext={() => { setInput(''); setOutput(''); setHtmlContext(''); setScreenshot(null); }}
-        template={template} setTemplate={setTemplate} htmlContext={htmlContext} setHtmlContext={setHtmlContext}
-        screenshot={screenshot} setScreenshot={setScreenshot} history={history}
-        loadFromHistory={(item: any) => { setInput(item.gherkin); setOutput(item.playwright); setBaseUrl(item.baseUrl); setActiveTab('input'); setTimeout(() => Prism.highlightAll(), 10); }}
-        deleteHistoryItem={async (id: string, e: any) => { e.stopPropagation(); const res = await fetch(`/api/history?id=${id}`, { method: 'DELETE' }); if (res.ok) fetchHistory(); }}
+        baseUrl={baseUrl} setBaseUrl={setBaseUrl} 
+        resetContext={() => { setInput(''); setOutput(''); setHtmlContext(''); setScreenshot(null); }}
+        template={template} setTemplate={setTemplate} 
+        htmlContext={htmlContext} setHtmlContext={setHtmlContext}
+        screenshot={screenshot} setScreenshot={setScreenshot} 
+        history={history}
+        loadFromHistory={(item: HistoryItem) => {
+          setInput(item.gherkin); setOutput(item.playwright); setBaseUrl(item.baseUrl); 
+          setActiveTab('input'); setTimeout(() => Prism.highlightAll(), 10);
+        }}
+        deleteHistoryItem={async (id: string, e: React.MouseEvent) => {
+          e.stopPropagation();
+          const res = await fetch(`/api/history?id=${id}`, { method: 'DELETE' });
+          if (res.ok) fetchHistory();
+        }}
       />
 
       <main className={`flex-1 flex flex-col relative dark:bg-zinc-950 bg-white ${ (activeTab === 'context' || activeTab === 'history') ? 'hidden lg:flex' : 'flex'} overflow-hidden`}>
         <Header loading={loading} input={input} meta={meta} onConvert={handleConvert} />
-        <Workspace activeTab={activeTab} input={input} setInput={setInput} output={output} onCopy={copyToClipboard} onDownload={downloadFile} />
+        <Workspace 
+          activeTab={activeTab} 
+          input={input} 
+          setInput={setInput} 
+          output={output} 
+          onCopy={handleCopy} 
+          onDownload={() => downloadPlaywrightFile(output)} 
+        />
       </main>
 
       <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />

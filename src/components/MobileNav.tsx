@@ -1,7 +1,14 @@
 // src/components/MobileNav.tsx
 import { FileText, Code, History, Settings2 } from 'lucide-react';
+// FIX: Use import type for types
+import type { TabType } from '../types';
 
-export const MobileNav = ({ activeTab, setActiveTab }: { activeTab: string, setActiveTab: (t: any) => void }) => (
+interface MobileNavProps {
+  activeTab: TabType;
+  setActiveTab: (t: TabType) => void;
+}
+
+export const MobileNav = ({ activeTab, setActiveTab }: MobileNavProps) => (
   <nav className="lg:hidden h-20 pb-4 flex border-t dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
     <button onClick={() => setActiveTab('input')} className={`flex-1 py-4 flex flex-col items-center gap-1 ${activeTab === 'input' ? 'text-indigo-500 bg-indigo-500/5' : 'text-slate-400'}`}>
       <FileText size={18} />

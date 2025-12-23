@@ -1,8 +1,10 @@
 // src/components/TemplateSelector.tsx
+// FIX: Use import type for types
+import type { TemplateType } from '../types';
 
 interface TemplateSelectorProps {
-  current: 'pom' | 'step-defs';
-  onChange: (val: 'pom' | 'step-defs') => void;
+  current: TemplateType;
+  onChange: (val: TemplateType) => void;
 }
 
 export const TemplateSelector = ({ current, onChange }: TemplateSelectorProps) => (
