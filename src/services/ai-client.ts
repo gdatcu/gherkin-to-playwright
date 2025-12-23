@@ -26,3 +26,22 @@ export const convertGherkin = async (
   
   return response.json();
 };
+
+/**
+ * Goal #3: Self-Healing Logic
+ * Analyzes HTML Context to suggest resilient Playwright locators.
+ */
+export const healSelectors = async (html: string, gherkin: string) => {
+  const response = await fetch('/api/convert', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+        gherkin,
+        htmlContext: html,
+        mode: 'heal' // Intent flag for the backend to provide analysis instead of full code
+    }),
+  });
+
+  if (!response.ok) throw new Error('Healing failed');
+  return response.json();
+};

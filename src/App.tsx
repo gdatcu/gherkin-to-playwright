@@ -5,11 +5,11 @@ import Prism from 'prismjs';
 import 'prismjs/components/prism-typescript';
 
 // Infrastructure
-import { convertGherkin } from './services/ai-client';
+import { convertGherkin, healSelectors } from './services/ai-client'; // Added healSelectors
 import { authClient } from "./lib/auth-client";
 import { useTheme } from './hooks/useTheme';
 import { copyToClipboard } from './utils/clipboard';
-import { downloadProjectZip } from './utils/file'; // Updated import
+import { downloadProjectZip } from './utils/file';
 
 // Types
 import type { HistoryItem, TemplateType, TabType } from './types';
@@ -30,6 +30,7 @@ function App() {
   const [output, setOutput] = useState('');
   const [meta, setMeta] = useState<{ model?: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [healing, setHealing] = useState(false); // Goal #3 state
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>('input');
@@ -63,6 +64,19 @@ function App() {
     finally { setLoading(false); }
   };
 
+  // Goal #3: Handle Selector Healing
+  const handleHealSelectors = async () => {
+    if (!htmlContext) return alert("Paste HTML context in the sidebar first.");
+    setHealing(true);
+    try {
+      const data = await healSelectors(htmlContext, input);
+      // Prepend analysis to the current output
+      setOutput(`/* ARCHITECT LOCATOR ANALYSIS */\n${data.analysis || data.code}\n\n${output}`);
+      setActiveTab('output');
+    } catch (e) { alert("Healing Analysis Failed."); }
+    finally { setHealing(false); }
+  };
+
   const handleCopy = async () => {
     const success = await copyToClipboard(output);
     if (success) {
@@ -91,6 +105,8 @@ function App() {
         htmlContext={htmlContext} setHtmlContext={setHtmlContext}
         screenshot={screenshot} setScreenshot={setScreenshot} 
         history={history}
+        isHealing={healing} // New Prop
+        onHealSelectors={handleHealSelectors} // New Prop
         loadFromHistory={(item: HistoryItem) => {
           setInput(item.gherkin); setOutput(item.playwright); setBaseUrl(item.baseUrl); 
           setActiveTab('input'); setTimeout(() => Prism.highlightAll(), 10);
@@ -110,7 +126,6 @@ function App() {
           setInput={setInput} 
           output={output} 
           onCopy={handleCopy} 
-          // Goal #1: Passing output and template for intelligent ZIP generation
           onDownload={() => downloadProjectZip(output, template)} 
         />
       </main>

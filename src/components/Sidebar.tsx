@@ -1,10 +1,9 @@
 // src/components/Sidebar.tsx
 import React from 'react';
-import { Globe, Image as ImageIcon, Zap, Sun, Moon, Trash2, History, Clock, X } from 'lucide-react';
+import { Globe, Image as ImageIcon, Zap, Sun, Moon, Trash2, History, Clock, X, Sparkles, Loader2 } from 'lucide-react';
 import { AuthStatus } from './AuthStatus';
 import { TemplateSelector } from './TemplateSelector';
 
-// FIX: Use import type for types
 import type { HistoryItem, TemplateType, TabType } from '../types';
 
 interface SidebarProps {
@@ -25,6 +24,8 @@ interface SidebarProps {
   screenshot: string | null;
   setScreenshot: (val: string | null) => void;
   history: HistoryItem[];
+  isHealing?: boolean; // Goal #3
+  onHealSelectors?: () => void; // Goal #3
   loadFromHistory: (item: HistoryItem) => void;
   deleteHistoryItem: (id: string, e: React.MouseEvent) => void;
 }
@@ -33,7 +34,8 @@ export const Sidebar = ({
   isDark, setIsDark, activeTab, session, handleLogin, handleLogout, 
   baseUrl, setBaseUrl, resetContext, template, setTemplate, 
   htmlContext, setHtmlContext, screenshot, setScreenshot,
-  history, loadFromHistory, deleteHistoryItem
+  history, loadFromHistory, deleteHistoryItem,
+  isHealing, onHealSelectors // Destructured new props
 }: SidebarProps) => (
   <aside className={`
     ${(activeTab === 'context' || activeTab === 'history') ? 'flex' : 'hidden'} 
@@ -68,11 +70,22 @@ export const Sidebar = ({
 
         <TemplateSelector current={template} onChange={setTemplate} />
 
+        {/* Goal #3: Enhanced DOM Context Section */}
         <section className="space-y-3 mt-6">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500 block text-left">DOM Context (HTML)</label>
+          <div className="flex justify-between items-end">
+             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-500 block text-left">DOM Context (HTML)</label>
+             <button 
+                onClick={onHealSelectors}
+                disabled={isHealing || !htmlContext}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-500 text-[9px] font-bold transition-all disabled:opacity-50"
+             >
+                {isHealing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                {isHealing ? "TRAINING..." : "VERIFY SELECTORS"}
+             </button>
+          </div>
           <textarea 
             className="w-full min-h-[120px] dark:bg-zinc-900 bg-slate-50 border dark:border-zinc-800 border-slate-200 rounded-lg p-3 text-[10px] font-mono outline-none focus:ring-1 focus:ring-indigo-500 transition-all resize-y dark:text-zinc-300 text-slate-600"
-            placeholder="Paste OuterHTML here..."
+            placeholder="Paste OuterHTML here to enable Self-Healing..."
             value={htmlContext} onChange={(e) => setHtmlContext(e.target.value)}
           />
         </section>
@@ -102,7 +115,7 @@ export const Sidebar = ({
         <div className="space-y-3">
           {!session ? (
              <div className="text-[9px] text-slate-400 uppercase font-bold py-8 text-center border border-dashed dark:border-zinc-800 rounded-lg px-4">
-              Sign in to view history
+               Sign in to view history
              </div>
           ) : history.length === 0 ? (
             <div className="text-[10px] text-slate-400 italic py-8 text-center border border-dashed dark:border-zinc-800 rounded-lg">
